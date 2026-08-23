@@ -9,9 +9,20 @@
 
 [Termux](https://termux.dev) is an Android terminal application and Linux environment.
 
+> **✨ Multi-User & Work Profile Support**: This fork adds native support for running Termux on **secondary Android user profiles**, **work profiles (Island / Shelter)**, and **cloned/dual app spaces** (e.g. User 10). It automatically virtualizes the hardcoded `/data/data` paths using a seamless PRoot layer with zero configuration required.
+
 Note that this repository is for the app itself (the user interface and the terminal emulation). For the packages installable inside the app, see [termux/termux-packages](https://github.com/termux/termux-packages).
 
 Quick how-to about Termux package management is available at [Package Management](https://github.com/termux/termux-packages/wiki/Package-Management). It also has info on how to fix **`repository is under maintenance or down`** errors when running `apt` or `pkg` commands.
+
+***
+
+### 🚀 Key Features in this Fork
+- **Secondary User / Cloned Apps Support**: Run Termux on secondary Android accounts (e.g. User 10, Dual Apps, Work Profiles).
+- **Automated PRoot Injection**: Gradle automatically fetches official upstream bootstrap packages and injects PRoot, ensuring you can sync with upstream without breaking multi-user support.
+- **GitHub Actions Auto-Release**: Automatically builds and publishes signed release APKs (`universal`, `arm64-v8a`, `armeabi-v7a`, `x86_64`, `x86`) under the `latest` tag on every push.
+
+***
 
 **We are looking for Termux Android application maintainers.**
 
