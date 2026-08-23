@@ -19,7 +19,10 @@ import com.termux.shared.shell.ShellUtils;
 import com.termux.terminal.TerminalSession;
 import com.termux.terminal.TerminalSessionClient;
 
+import com.termux.shared.termux.TermuxConstants;
+
 import java.io.File;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -138,6 +141,86 @@ public class TermuxSession {
             executionCommand);
         if (additionalEnvironment != null)
             environment.putAll(additionalEnvironment);
+
+        if (TermuxConstants.isSecondaryUser(currentPackageContext) && !executionCommand.isFailsafe) {
+            String realFilesDir = TermuxConstants.getRealFilesDirPath(currentPackageContext);
+            String realPrefixDir = TermuxConstants.getRealPrefixDirPath(currentPackageContext);
+            String realHomeDir = TermuxConstants.getRealHomeDirPath(currentPackageContext);
+            // Extract /data/user/N from /data/user/N/com.termux/files
+            String realUserDataDir = new File(realFilesDir).getParentFile().getParent();
+            String prootBinary = realPrefixDir + "/bin/proot";
+
+            File homeDirFile = new File(realHomeDir);
+            homeDirFile.mkdirs();
+            try { android.system.Os.chmod(homeDirFile.getAbsolutePath(), 0700); } catch (Exception ignored) {}
+
+            File tmpDirFile = new File(realPrefixDir + "/tmp");
+            tmpDirFile.mkdirs();
+            try { android.system.Os.chmod(tmpDirFile.getAbsolutePath(), 0700); } catch (Exception ignored) {}
+
+            // Create apt config dirs to suppress "Unable to read" warnings
+            new File(realPrefixDir + "/etc/apt/apt.conf.d").mkdirs();
+            new File(realPrefixDir + "/etc/apt/preferences.d").mkdirs();
+
+            if (new File(prootBinary).canExecute()) {
+                List<String> prootArgsList = new ArrayList<>();
+                prootArgsList.add("proot");
+                prootArgsList.add("--link2symlink");
+                // Key binding: map /data/data (a symlink to /data/user/0) to /data/user/N.
+                // The ! suffix prevents PRoot from dereferencing the final component,
+                // so /data/data is treated as a literal path, not followed to /data/user/0.
+                prootArgsList.add("-b");
+                prootArgsList.add(realUserDataDir + ":/data/data!");
+                prootArgsList.add("-b");
+                prootArgsList.add("/dev");
+                prootArgsList.add("-b");
+                prootArgsList.add("/proc");
+                prootArgsList.add("-b");
+                prootArgsList.add("/system");
+                prootArgsList.add("-b");
+                prootArgsList.add("/apex");
+                prootArgsList.add("-b");
+                prootArgsList.add("/vendor");
+                prootArgsList.add("-b");
+                prootArgsList.add("/storage");
+                prootArgsList.add("-w");
+                prootArgsList.add("/data/data/" + TermuxConstants.TERMUX_PACKAGE_NAME + "/files/home");
+
+                // Target shell inside PRoot:
+                String targetShell;
+                if (new File(realPrefixDir + "/bin/login").exists()) {
+                    targetShell = "/data/data/" + TermuxConstants.TERMUX_PACKAGE_NAME + "/files/usr/bin/login";
+                } else if (new File(realPrefixDir + "/bin/bash").exists()) {
+                    targetShell = "/data/data/" + TermuxConstants.TERMUX_PACKAGE_NAME + "/files/usr/bin/bash";
+                } else {
+                    targetShell = "/data/data/" + TermuxConstants.TERMUX_PACKAGE_NAME + "/files/usr/bin/sh";
+                }
+                prootArgsList.add(targetShell);
+                if (isLoginShell) {
+                    prootArgsList.add("-l");
+                }
+                if (executionCommand.arguments != null && executionCommand.arguments.length > 1) {
+                    for (int i = 1; i < executionCommand.arguments.length; i++) {
+                        prootArgsList.add(executionCommand.arguments[i]);
+                    }
+                }
+
+                executionCommand.executable = prootBinary;
+                executionCommand.arguments = prootArgsList.toArray(new String[0]);
+                executionCommand.workingDirectory = realFilesDir;
+
+                environment.put("HOME", "/data/data/" + TermuxConstants.TERMUX_PACKAGE_NAME + "/files/home");
+                environment.put("PREFIX", "/data/data/" + TermuxConstants.TERMUX_PACKAGE_NAME + "/files/usr");
+                environment.put("PROOT_TMP_DIR", realPrefixDir + "/tmp");
+                environment.put("PROOT_LOADER", realPrefixDir + "/libexec/proot/loader");
+                environment.put("PROOT_LOADER_32", realPrefixDir + "/libexec/proot/loader32");
+                environment.put("TMPDIR", "/data/data/" + TermuxConstants.TERMUX_PACKAGE_NAME + "/files/usr/tmp");
+                environment.put("PATH", "/data/data/" + TermuxConstants.TERMUX_PACKAGE_NAME + "/files/usr/bin:/data/data/" + TermuxConstants.TERMUX_PACKAGE_NAME + "/files/usr/bin/applets:" + realPrefixDir + "/bin:/system/bin:/system/xbin");
+                environment.put("TERM", "xterm-256color");
+                environment.put("LD_LIBRARY_PATH", realPrefixDir + "/lib:/data/data/" + TermuxConstants.TERMUX_PACKAGE_NAME + "/files/usr/lib");
+            }
+        }
+
         List<String> environmentList = ShellEnvironmentUtils.convertEnvironmentToEnviron(environment);
         Collections.sort(environmentList);
         String[] environmentArray = environmentList.toArray(new String[0]);

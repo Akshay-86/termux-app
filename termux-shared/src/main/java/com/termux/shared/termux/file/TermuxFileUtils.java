@@ -258,50 +258,47 @@ public class TermuxFileUtils {
         if (createDirectoryIfMissing)
             context.getFilesDir();
 
-        if (!FileUtils.directoryFileExists(TermuxConstants.TERMUX_FILES_DIR_PATH, true))
-            return FileUtilsErrno.ERRNO_FILE_NOT_FOUND_AT_PATH.getError("termux files directory", TermuxConstants.TERMUX_FILES_DIR_PATH);
+        String filesDirPath = TermuxConstants.getRealFilesDirPath(context);
+        if (!FileUtils.directoryFileExists(filesDirPath, true))
+            return FileUtilsErrno.ERRNO_FILE_NOT_FOUND_AT_PATH.getError("termux files directory", filesDirPath);
 
         if (setMissingPermissions)
-            FileUtils.setMissingFilePermissions("termux files directory", TermuxConstants.TERMUX_FILES_DIR_PATH,
+            FileUtils.setMissingFilePermissions("termux files directory", filesDirPath,
                 FileUtils.APP_WORKING_DIRECTORY_PERMISSIONS);
 
-        return FileUtils.checkMissingFilePermissions("termux files directory", TermuxConstants.TERMUX_FILES_DIR_PATH,
+        return FileUtils.checkMissingFilePermissions("termux files directory", filesDirPath,
             FileUtils.APP_WORKING_DIRECTORY_PERMISSIONS, false);
     }
 
     /**
-     * Validate if {@link TermuxConstants#TERMUX_PREFIX_DIR_PATH} exists and has
-     * {@link FileUtils#APP_WORKING_DIRECTORY_PERMISSIONS} permissions.
-     * .
-     *
-     * The {@link TermuxConstants#TERMUX_PREFIX_DIR_PATH} directory would not exist if termux has
-     * not been installed or the bootstrap setup has not been run or if it was deleted by the user.
-     *
-     * @param createDirectoryIfMissing The {@code boolean} that decides if directory file
-     *                                 should be created if its missing.
-     * @param setMissingPermissions The {@code boolean} that decides if permissions are to be
-     *                              automatically set.
-     * @return Returns the {@code error} if path is not a directory file, failed to create it,
-     * or validating permissions failed, otherwise {@code null}.
+     * Validate if prefix directory exists and has permissions.
      */
+    public static Error isTermuxPrefixDirectoryAccessible(@NonNull final Context context, boolean createDirectoryIfMissing, boolean setMissingPermissions) {
+        String prefixDirPath = TermuxConstants.getRealPrefixDirPath(context);
+        return FileUtils.validateDirectoryFileExistenceAndPermissions("termux prefix directory", prefixDirPath,
+            null, createDirectoryIfMissing,
+            FileUtils.APP_WORKING_DIRECTORY_PERMISSIONS, setMissingPermissions, true,
+            false, false);
+    }
+
     public static Error isTermuxPrefixDirectoryAccessible(boolean createDirectoryIfMissing, boolean setMissingPermissions) {
-           return FileUtils.validateDirectoryFileExistenceAndPermissions("termux prefix directory", TermuxConstants.TERMUX_PREFIX_DIR_PATH,
-                null, createDirectoryIfMissing,
-                FileUtils.APP_WORKING_DIRECTORY_PERMISSIONS, setMissingPermissions, true,
-                false, false);
+        return FileUtils.validateDirectoryFileExistenceAndPermissions("termux prefix directory", TermuxConstants.TERMUX_PREFIX_DIR_PATH,
+            null, createDirectoryIfMissing,
+            FileUtils.APP_WORKING_DIRECTORY_PERMISSIONS, setMissingPermissions, true,
+            false, false);
     }
 
     /**
-     * Validate if {@link TermuxConstants#TERMUX_STAGING_PREFIX_DIR_PATH} exists and has
-     * {@link FileUtils#APP_WORKING_DIRECTORY_PERMISSIONS} permissions.
-     *
-     * @param createDirectoryIfMissing The {@code boolean} that decides if directory file
-     *                                 should be created if its missing.
-     * @param setMissingPermissions The {@code boolean} that decides if permissions are to be
-     *                              automatically set.
-     * @return Returns the {@code error} if path is not a directory file, failed to create it,
-     * or validating permissions failed, otherwise {@code null}.
+     * Validate if prefix staging directory exists and has permissions.
      */
+    public static Error isTermuxPrefixStagingDirectoryAccessible(@NonNull final Context context, boolean createDirectoryIfMissing, boolean setMissingPermissions) {
+        String stagingDirPath = TermuxConstants.getRealStagingPrefixDirPath(context);
+        return FileUtils.validateDirectoryFileExistenceAndPermissions("termux prefix staging directory", stagingDirPath,
+            null, createDirectoryIfMissing,
+            FileUtils.APP_WORKING_DIRECTORY_PERMISSIONS, setMissingPermissions, true,
+            false, false);
+    }
+
     public static Error isTermuxPrefixStagingDirectoryAccessible(boolean createDirectoryIfMissing, boolean setMissingPermissions) {
         return FileUtils.validateDirectoryFileExistenceAndPermissions("termux prefix staging directory", TermuxConstants.TERMUX_STAGING_PREFIX_DIR_PATH,
             null, createDirectoryIfMissing,
@@ -328,9 +325,20 @@ public class TermuxFileUtils {
     }
 
     /**
-     * If {@link TermuxConstants#TERMUX_PREFIX_DIR_PATH} doesn't exist, is empty or only contains
-     * files in {@link TermuxConstants#TERMUX_PREFIX_DIR_IGNORED_SUB_FILES_PATHS_TO_CONSIDER_AS_EMPTY}.
+     * If prefix directory doesn't exist, is empty or only contains specific unimportant files.
      */
+    public static boolean isTermuxPrefixDirectoryEmpty(@NonNull final Context context) {
+        String prefixDirPath = TermuxConstants.getRealPrefixDirPath(context);
+        Error error = FileUtils.validateDirectoryFileEmptyOrOnlyContainsSpecificFiles("termux prefix",
+            prefixDirPath, TermuxConstants.TERMUX_PREFIX_DIR_IGNORED_SUB_FILES_PATHS_TO_CONSIDER_AS_EMPTY, true);
+        if (error == null)
+            return true;
+
+        if (!FileUtilsErrno.ERRNO_NON_EMPTY_DIRECTORY_FILE.equalsErrorTypeAndCode(error))
+            Logger.logErrorExtended(LOG_TAG, "Failed to check if termux prefix directory is empty:\n" + error.getErrorLogString());
+        return false;
+    }
+
     public static boolean isTermuxPrefixDirectoryEmpty() {
         Error error = FileUtils.validateDirectoryFileEmptyOrOnlyContainsSpecificFiles("termux prefix",
             TERMUX_PREFIX_DIR_PATH, TermuxConstants.TERMUX_PREFIX_DIR_IGNORED_SUB_FILES_PATHS_TO_CONSIDER_AS_EMPTY, true);

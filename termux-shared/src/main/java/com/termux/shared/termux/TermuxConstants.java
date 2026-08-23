@@ -1,7 +1,9 @@
 package com.termux.shared.termux;
 
 import android.annotation.SuppressLint;
+import android.content.Context;
 import android.content.Intent;
+import androidx.annotation.NonNull;
 
 import com.termux.shared.shell.command.ExecutionCommand;
 import com.termux.shared.shell.command.ExecutionCommand.Runner;
@@ -692,6 +694,62 @@ public final class TermuxConstants {
     /** Termux app $PREFIX directory path ignored sub file paths to consider it empty */
     public static final List<String> TERMUX_PREFIX_DIR_IGNORED_SUB_FILES_PATHS_TO_CONSIDER_AS_EMPTY = Arrays.asList(
         TermuxConstants.TERMUX_TMP_PREFIX_DIR_PATH, TermuxConstants.TERMUX_ENV_TEMP_FILE_PATH, TermuxConstants.TERMUX_ENV_FILE_PATH);
+
+    /**
+     * Get the real Files directory path for the current runtime context.
+     * On primary user, returns "/data/data/com.termux/files" or "/data/user/0/com.termux/files".
+     * On secondary users / work profiles, returns "/data/user/[ID]/com.termux/files".
+     */
+    @NonNull
+    public static String getRealFilesDirPath(@NonNull Context context) {
+        return context.getFilesDir().getAbsolutePath();
+    }
+
+    /**
+     * Get the real $PREFIX directory path for the current runtime context.
+     */
+    @NonNull
+    public static String getRealPrefixDirPath(@NonNull Context context) {
+        return getRealFilesDirPath(context) + "/usr";
+    }
+
+    /**
+     * Get the real staging $PREFIX directory path for the current runtime context.
+     */
+    @NonNull
+    public static String getRealStagingPrefixDirPath(@NonNull Context context) {
+        return getRealFilesDirPath(context) + "/usr-staging";
+    }
+
+    /**
+     * Get the real $HOME directory path for the current runtime context.
+     */
+    @NonNull
+    public static String getRealHomeDirPath(@NonNull Context context) {
+        return getRealFilesDirPath(context) + "/home";
+    }
+
+    /**
+     * Get the real user base data directory path for the current runtime context.
+     * E.g. for "/data/user/10/com.termux/files" -> "/data/user/10".
+     */
+    @NonNull
+    public static String getRealUserDataDirPath(@NonNull Context context) {
+        File filesDir = context.getFilesDir();
+        File appDir = filesDir != null ? filesDir.getParentFile() : null;
+        if (appDir != null && appDir.getParentFile() != null) {
+            return appDir.getParentFile().getAbsolutePath();
+        }
+        return "/data/data";
+    }
+
+    /**
+     * Check if the app is currently running under a secondary user profile, work profile, or cloned user.
+     */
+    public static boolean isSecondaryUser(@NonNull Context context) {
+        String filesDir = context.getFilesDir().getAbsolutePath();
+        return !filesDir.startsWith("/data/data/") && !filesDir.startsWith("/data/user/0/");
+    }
 
 
 
