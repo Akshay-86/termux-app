@@ -84,6 +84,19 @@ android {
             storePassword 'xrj45yWGLbsO7W0v'
             keyPassword 'xrj45yWGLbsO7W0v'
         }
+        release {
+            if (System.getenv("KEYSTORE_FILE") != null && file(System.getenv("KEYSTORE_FILE")).exists()) {
+                storeFile file(System.getenv("KEYSTORE_FILE"))
+                storePassword System.getenv("KEYSTORE_PASSWORD")
+                keyAlias System.getenv("KEY_ALIAS")
+                keyPassword System.getenv("KEY_PASSWORD")
+            } else {
+                storeFile file('testkey_untrusted.jks')
+                keyAlias 'alias'
+                storePassword 'xrj45yWGLbsO7W0v'
+                keyPassword 'xrj45yWGLbsO7W0v'
+            }
+        }
     }
 
     buildTypes {
@@ -91,6 +104,7 @@ android {
             minifyEnabled true
             shrinkResources false // Reproducible builds
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            signingConfig signingConfigs.release
         }
 
         debug {
@@ -165,11 +179,31 @@ def validateVersionName(String versionName) {
 }
 
 def downloadBootstrap(String arch, String expectedChecksum, String version) {
-    def digest = java.security.MessageDigest.getInstance("SHA-256")
-
     def localUrl = "src/main/cpp/bootstrap-" + arch + ".zip"
     def file = new File(projectDir, localUrl)
-    if (file.exists()) {
+    def patchScript = new File(project.rootDir, "scripts/patch_bootstrap_with_proot.py")
+
+    if (file.exists() && file.length() < 1000) {
+        file.delete()
+    }
+
+    if (!file.exists()) {
+        def remoteUrl = "https://github.com/termux/termux-packages/releases/download/bootstrap-" + version + "/bootstrap-" + arch + ".zip"
+        logger.quiet("Downloading " + remoteUrl + " with curl ...")
+
+        file.parentFile.mkdirs()
+        def downloadProcess = new ProcessBuilder("curl", "-L", "-s", "--fail", "-A", "Mozilla/5.0 (Android; Termux-Build)", "-o", file.absolutePath, remoteUrl)
+                .directory(project.rootDir)
+                .inheritIO()
+                .start()
+        int dlExit = downloadProcess.waitFor()
+        if (dlExit != 0 || !file.exists() || file.length() < 1000) {
+            file.delete()
+            throw new GradleException("Failed to download " + remoteUrl)
+        }
+
+        // Verify SHA256
+        def digest = java.security.MessageDigest.getInstance("SHA-256")
         def buffer = new byte[8192]
         def input = new FileInputStream(file)
         while (true) {
@@ -177,33 +211,25 @@ def downloadBootstrap(String arch, String expectedChecksum, String version) {
             if (readBytes < 0) break
             digest.update(buffer, 0, readBytes)
         }
+        input.close()
         def checksum = new BigInteger(1, digest.digest()).toString(16)
         while (checksum.length() < 64) { checksum = "0" + checksum }
-        if (checksum == expectedChecksum) {
-            return
-        } else {
-            logger.quiet("Deleting old local file with wrong hash: " + localUrl + ": expected: " + expectedChecksum + ", actual: " + checksum)
+        if (checksum != expectedChecksum) {
             file.delete()
+            throw new GradleException("Wrong checksum for " + remoteUrl + ": expected: " + expectedChecksum + ", actual: " + checksum)
         }
     }
 
-    def remoteUrl = "https://github.com/termux/termux-packages/releases/download/bootstrap-" + version + "/bootstrap-" + arch + ".zip"
-    logger.quiet("Downloading " + remoteUrl + " ...")
-
-    file.parentFile.mkdirs()
-    def out = new BufferedOutputStream(new FileOutputStream(file))
-
-    def connection = new URL(remoteUrl).openConnection()
-    connection.setInstanceFollowRedirects(true)
-    def digestStream = new java.security.DigestInputStream(connection.inputStream, digest)
-    out << digestStream
-    out.close()
-
-    def checksum = new BigInteger(1, digest.digest()).toString(16)
-    while (checksum.length() < 64) { checksum = "0" + checksum }
-    if (checksum != expectedChecksum) {
-        file.delete()
-        throw new GradleException("Wrong checksum for " + remoteUrl + ": expected: " + expectedChecksum + ", actual: " + checksum)
+    if (patchScript.exists()) {
+        logger.quiet("Ensuring PRoot is injected in " + localUrl + " ...")
+        def process = new ProcessBuilder("python3", patchScript.absolutePath, file.absolutePath, arch)
+                .directory(project.rootDir)
+                .inheritIO()
+                .start()
+        int exitCode = process.waitFor()
+        if (exitCode != 0) {
+            throw new GradleException("Failed to patch " + localUrl + " with PRoot, exit code: " + exitCode)
+        }
     }
 }
 
@@ -216,14 +242,15 @@ clean {
 }
 
 task downloadBootstraps() {
+    mustRunAfter clean
     doLast {
         def packageVariant = project.ext.packageVariant
         if (packageVariant == "apt-android-7") {
             def version = "2026.02.12-r1" + "%2B" + "apt.android-7"
-            downloadBootstrap("aarch64", "9aaae8cf65b11f4a89d97bcdcbf19d5b3d44533b43e75b0602face0b7d92670e", version)
-            downloadBootstrap("arm", "4dbe74d023ddfce0ea18bf5f0330762180d8adaa87a0585489b1b13f2c109be8", version)
-            downloadBootstrap("i686", "f5836bf658858474fdd88bfea7d1e290c4de974712eff34cc557098740b37cf4", version)
-            downloadBootstrap("x86_64", "dd6ffaece84e3d5220486b88d935e754b065c61fd8ccfa0689ece7142cf1199a", version)
+            downloadBootstrap("aarch64", "ea2aeba8819e517db711f8c32369e89e7c52cee73e07930ff91185e1ab93f4f3", version)
+            downloadBootstrap("arm", "a38f4d3b2f735f83be2bf54eff463e86dc32a3e2f9f861c1557c4378d249c018", version)
+            downloadBootstrap("i686", "f5bc0b025b9f3b420b5fcaeefc064f888f5f22a0d6fd7090f4aac0c33eb3555b", version)
+            downloadBootstrap("x86_64", "b7fd0f2e3a4de534be3144f9f91acc768630fc463eaf134ab2e64c545e834f7a", version)
         } else if (packageVariant == "apt-android-5") {
             def version = "2022.04.28-r6" + "+" + packageVariant
             downloadBootstrap("aarch64", "913609d439415c828c5640be1b0561467e539cb1c7080662decaaca2fb4820e7", version)
@@ -240,4 +267,11 @@ afterEvaluate {
     android.applicationVariants.all { variant ->
         variant.javaCompileProvider.get().dependsOn(downloadBootstraps)
     }
+    tasks.configureEach { task ->
+        if (task != downloadBootstraps && !task.name.toLowerCase().contains("clean") && (task.name.contains("NdkBuild") || task.name.contains("Native") || task.name.contains("native") || task.name.startsWith("merge") && task.name.contains("NativeLibs"))) {
+            task.dependsOn(downloadBootstraps)
+        }
+    }
 }
+
+

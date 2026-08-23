@@ -274,7 +274,7 @@ final class TermuxInstaller {
             public void run() {
                 try {
                     Error error;
-                    File storageDir = TermuxConstants.TERMUX_STORAGE_HOME_DIR;
+                    File storageDir = new File(TermuxConstants.getRealHomeDirPath(context), "storage");
 
                     error = FileUtils.clearDirectory("~/storage", storageDir.getAbsolutePath());
                     if (error != null) {

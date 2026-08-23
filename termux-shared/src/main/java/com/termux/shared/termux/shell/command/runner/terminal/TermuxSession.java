@@ -218,6 +218,12 @@ public class TermuxSession {
                 environment.put("PATH", "/data/data/" + TermuxConstants.TERMUX_PACKAGE_NAME + "/files/usr/bin:/data/data/" + TermuxConstants.TERMUX_PACKAGE_NAME + "/files/usr/bin/applets:" + realPrefixDir + "/bin:/system/bin:/system/xbin");
                 environment.put("TERM", "xterm-256color");
                 environment.put("LD_LIBRARY_PATH", realPrefixDir + "/lib:/data/data/" + TermuxConstants.TERMUX_PACKAGE_NAME + "/files/usr/lib");
+
+                Long userId = com.termux.shared.android.PackageUtils.getUserIdForPackage(currentPackageContext);
+                if (userId != null) {
+                    environment.put("TERMUX__USER_ID", String.valueOf(userId));
+                    environment.put("TERMUX_APP__USER_ID", String.valueOf(userId));
+                }
             }
         }
 

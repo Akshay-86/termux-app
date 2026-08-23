@@ -102,8 +102,11 @@ public class TermuxAmSocketServer {
     public static synchronized void start(@NonNull Context context) {
         stop();
 
+        String socketPath = TermuxConstants.getRealFilesDirPath(context) + "/apps/" + TermuxConstants.TERMUX_PACKAGE_NAME + "/termux-am/am.sock";
+        new java.io.File(socketPath).getParentFile().mkdirs();
+
         AmSocketServerRunConfig amSocketServerRunConfig = new AmSocketServerRunConfig(TITLE,
-            TermuxConstants.TERMUX_APP.TERMUX_AM_SOCKET_FILE_PATH, new TermuxAmSocketServerClient());
+            socketPath, new TermuxAmSocketServerClient());
 
         termuxAmSocketServer = AmSocketServer.start(context, amSocketServerRunConfig);
     }
