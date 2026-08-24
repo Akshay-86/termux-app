@@ -88,12 +88,20 @@ final class TermuxInstaller {
 
         // If prefix directory exists, check if it is populated and valid
         boolean isPrefixValid = FileUtils.directoryFileExists(realPrefixDirPath, true) && !TermuxFileUtils.isTermuxPrefixDirectoryEmpty(activity);
-        if (isPrefixValid && TermuxConstants.isSecondaryUser(activity)) {
-            // Secondary users strictly require proot binary in bin/proot
-            File prootFile = new File(realPrefixDirPath, "bin/proot");
-            if (!prootFile.exists() || !prootFile.canExecute()) {
-                Logger.logInfo(LOG_TAG, "Secondary user detected and bin/proot is missing; re-installing bootstrap.");
+        if (isPrefixValid) {
+            File loginFile = new File(realPrefixDirPath, "bin/login");
+            File bashFile = new File(realPrefixDirPath, "bin/bash");
+            File shFile = new File(realPrefixDirPath, "bin/sh");
+            if (!loginFile.canExecute() && !bashFile.canExecute() && !shFile.canExecute()) {
+                Logger.logInfo(LOG_TAG, "Prefix exists but shell binaries are missing or not executable; re-installing bootstrap.");
                 isPrefixValid = false;
+            } else if (TermuxConstants.isSecondaryUser(activity)) {
+                // Secondary users strictly require proot binary in bin/proot
+                File prootFile = new File(realPrefixDirPath, "bin/proot");
+                if (!prootFile.exists() || !prootFile.canExecute()) {
+                    Logger.logInfo(LOG_TAG, "Secondary user detected and bin/proot is missing; re-installing bootstrap.");
+                    isPrefixValid = false;
+                }
             }
         }
 
@@ -207,6 +215,21 @@ final class TermuxInstaller {
                     }
 
                     Logger.logInfo(LOG_TAG, "Bootstrap packages installed successfully.");
+
+                    // Ensure runtime mode banner script exists
+                    try {
+                        File profileDir = new File(realPrefixDirPath, "etc/profile.d");
+                        profileDir.mkdirs();
+                        File bannerFile = new File(profileDir, "00-termux-runtime-mode.sh");
+                        String bannerScript = "#!/data/data/com.termux/files/usr/bin/sh\n" +
+                            "if [ -n \"$TERMUX__USER_ID\" ] && [ \"$TERMUX__USER_ID\" -ne 0 ] 2>/dev/null; then\n" +
+                            "    printf \"\\033[1;36m[*] Runtime Mode:\\033[0m Virtualized (PRoot - User %s / Multi-User Profile)\\n\\n\" \"$TERMUX__USER_ID\"\n" +
+                            "else\n" +
+                            "    printf \"\\033[1;32m[*] Runtime Mode:\\033[0m Native (Direct Execution - Primary User 0)\\n\\n\"\n" +
+                            "fi\n";
+                        com.termux.shared.file.FileUtils.writeTextToFile("00-termux-runtime-mode.sh", bannerFile.getAbsolutePath(), java.nio.charset.Charset.defaultCharset(), bannerScript, false);
+                        Os.chmod(bannerFile.getAbsolutePath(), 0755);
+                    } catch (Exception ignored) {}
 
                     // Recreate env file since termux prefix was wiped earlier
                     TermuxShellEnvironment.writeEnvironmentToFile(activity);

@@ -747,6 +747,10 @@ public final class TermuxConstants {
      * Check if the app is currently running under a secondary user profile, work profile, or cloned user.
      */
     public static boolean isSecondaryUser(@NonNull Context context) {
+        Long userId = com.termux.shared.android.PackageUtils.getUserIdForPackage(context);
+        if (userId != null) {
+            return userId != 0L;
+        }
         String filesDir = context.getFilesDir().getAbsolutePath();
         return !filesDir.startsWith("/data/data/") && !filesDir.startsWith("/data/user/0/");
     }

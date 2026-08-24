@@ -142,8 +142,11 @@ public class TermuxAppShellEnvironment {
             ShellEnvironmentUtils.putToEnvIfSet(environment, ENV_TERMUX_APP__SE_INFO, PackageUtils.getApplicationInfoSeInfoForPackage(applicationInfo) +
                 (DataUtils.isNullOrEmpty(seInfoUser) ? "" : seInfoUser));
 
-            if(Build.VERSION.SDK_INT >= Build.VERSION_CODES.N)
-                ShellEnvironmentUtils.putToEnvIfSet(environment, ENV_TERMUX_APP__USER_ID, String.valueOf(PackageUtils.getUserIdForPackage(currentPackageContext)));
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                String userIdStr = String.valueOf(PackageUtils.getUserIdForPackage(currentPackageContext));
+                ShellEnvironmentUtils.putToEnvIfSet(environment, ENV_TERMUX_APP__USER_ID, userIdStr);
+                ShellEnvironmentUtils.putToEnvIfSet(environment, "TERMUX__USER_ID", userIdStr);
+            }
             ShellEnvironmentUtils.putToEnvIfSet(environment, ENV_TERMUX_APP__PROFILE_OWNER, PackageUtils.getProfileOwnerPackageNameForUser(currentPackageContext));
         }
 
